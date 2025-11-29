@@ -1,23 +1,22 @@
 {
   "Config": {
     "Flags": {
-      "SkipUEV": true,
-      "SkipLeftAlignStart": true,
-      "SkipUpdates": false,
-      "SkipWinGet": false,
-      "SkipHideWidgets": false,
-      "SkipStartLayout": false,
-      "SkipTaskbarLayout": false,
-      "SkipTheme": false,
-      "SkipLockScreen": false,
-      "SkipAutoinstallingApps": false,
-      "SkipShowDesktopFaster": false,
-      "SkipAPv2": false,
-      "SkipEdgeUpdate": false,
-      "SkipRemoveCopilotPWA": true,
-      "SkipEnterpriseGVLK": true,
-      "SkipDisableWidgets": true,
-      "SkipChromeConfig": false
+      "LeftAlignStart": true,
+      "Updates": false,
+      "WinGet": false,
+      "HideWidgets": false,
+      "StartLayout": false,
+      "TaskbarLayout": false,
+      "Theme": false,
+      "LockScreen": false,
+      "AutoinstallingApps": false,
+      "ShowDesktopFaster": false,
+      "APv2": false,
+      "EdgeUpdate": false,
+      "RemoveCopilotPWA": true,
+      "EnterpriseGVLK": true,
+      "DisableWidgets": true,
+      "ChromeConfig": false
     },
 
     "Settings": {
