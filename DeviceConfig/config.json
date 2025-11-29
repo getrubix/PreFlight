@@ -1,0 +1,107 @@
+{
+  "Config": {
+    "Flags": {
+      "SkipUEV": true,
+      "SkipLeftAlignStart": true,
+      "SkipUpdates": false,
+      "SkipWinGet": false,
+      "SkipHideWidgets": false,
+      "SkipStartLayout": false,
+      "SkipTaskbarLayout": false,
+      "SkipTheme": false,
+      "SkipLockScreen": false,
+      "SkipAutoinstallingApps": false,
+      "SkipShowDesktopFaster": false,
+      "SkipAPv2": false,
+      "SkipEdgeUpdate": false,
+      "SkipRemoveCopilotPWA": true,
+      "SkipEnterpriseGVLK": true,
+      "SkipDisableWidgets": true,
+      "SkipChromeConfig": false
+    },
+
+    "Settings": {
+      "TimeZone": "",
+      "RemoveApps": [
+        "Clipchamp.Clipchamp",
+        "Microsoft.BingNews",
+        "Microsoft.BingWeather",
+        "Microsoft.GamingApp",
+        "Microsoft.GetHelp",
+        "Microsoft.GetStarted",
+        "Microsoft.Messaging",
+        "Microsoft.Microsoft3DViewer",
+        "Microsoft.MicrosoftOfficeHub",
+        "Microsoft.MicrosoftSolitaireCollection",
+        "Microsoft.MixedReality.Portal",
+        "Microsoft.MSPaint",
+        "Microsoft.News",
+        "Microsoft.OneConnect",
+        "Microsoft.OutlookForWindows",
+        "Microsoft.People",
+        "Microsoft.PowerAutomateDesktop",
+        "Microsoft.Print3D",
+        "Microsoft.SkypeApp",
+        "microsoft.windowscommunicationsapps",
+        "Microsoft.WindowsFeedbackHub",
+        "Microsoft.WindowsMaps",
+        "Microsoft.XboxApp",
+        "Microsoft.YourPhone",
+        "Microsoft.ZuneMusic",
+        "Microsoft.ZuneVideo",
+        "Microsoft.Xbox.TCUI",
+        "Microsoft.XboxApp",
+        "Microsoft.XboxGameOverlay",
+        "Microsoft.XboxGamingOverlay",
+        "Microsoft.XboxIdentityProvider",
+        "Microsoft.XboxSpeechToTextOverlay",
+        "MicrosoftCorporationII.MicrosoftFamily",
+        "MicrosoftTeams",
+        "MSTeams",
+        "9NHT9RB2F4HD"
+      ],
+
+      "WinGetInstall": [
+        "Google.Chrome",
+        "9WZDNCRD29V9"
+      ],
+
+      "OneDriveSetup": "https://go.microsoft.com/fwlink/?linkid=844652",
+      "OneDriveARMSetup": "https://go.microsoft.com/fwlink/?linkid=2282608",
+      "EdgeBusinessMSI": "https://go.microsoft.com/fwlink/?LinkID=2093437",
+      "EdgeBusinessARM": "",
+
+      "AddFeatures": [
+        "Microsoft.Windows.Sense.Client~~~~",
+        "WMIC"
+      ],
+
+      "DisableOptionalFeatures": [
+        "MicrosoftWindowsPowershellV2Root",
+        "WorkFolders-Client",
+        "Recall",
+        "MediaPlayback"
+      ],
+
+      "RemoveCapability": [
+        "App.StepsRecorder",
+        "Microsoft.Windows.PowerShell.ISE"
+      ],
+
+      "Language": "",
+      "DefaultApps": "Associations.xml",
+
+      "RegisteredOwner": "Autopilot User",
+      "RegisteredOrganization": "Contoso",
+
+      "OEMInfo": {
+        "Manufacturer": "Contoso",
+        "Model": "PC",
+        "Logo": "Contoso.bmp",
+        "SupportPhone": "+1 800-555-1212",
+        "SupportHours": "8am-5pm PST",
+        "SupportURL": "http://www.contoso.com"
+      }
+    }
+  }
+}
