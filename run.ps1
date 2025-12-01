@@ -1,43 +1,41 @@
 <#
 .SYNOPSIS
-Configures initial settings during Autopilot provisioning for Windows PC.
+Configures Windows devices during Autopilot provisioning with comprehensive customization and debloating capabilities.
 
 .DESCRIPTION
-InitialDeviceConfig invokes a json file from blob storage or uses a local config.json file with instructions on what to modify on the system.
+PreFlight DeviceConfig automates Windows device setup during Autopilot provisioning by loading a configuration file (config.json) 
+from Azure blob storage or local file system. The script performs 12 phases of customization including:
+- UI customization (themes, wallpapers, lock screen, Start menu, taskbar)
+- Bloatware removal (built-in apps and provisioned packages)
+- Time zone configuration
+- Windows optional features management
+- WinGet application installation
+- Autopilot v2 optimization (disabled privacy/voice screens)
+- Registry tweaks for improved user experience (taskbar alignment, widgets, Edge shortcuts)
+- Default user profile configuration
 
 .PARAMETER UseLocal
-Use the local config.json file instead of downloading from blob storage
+Use the local config.json file from the script directory instead of downloading from blob storage.
 
-.PARAMETER Debloat
-Specify the Debloat parameter to remove built in Windows apps
-
-.PARAMETER Customize
-Specify the Customize parameter to modify visual elements of Windows including desktop wallpaper (preference), lock screen wallpaper, Start menu, and taskbar customization 
+.PARAMETER Url
+The Azure blob storage URL to download config.json and customization assets from. Required when not using -UseLocal.
 
 .EXAMPLES
 .EXAMPLE
-PS> run.ps1
-Runs InitialDeviceConfig and downloads config.json from blob storage (default behavior)
+PS> run.ps1 -Url "https://mystorageaccount.blob.core.windows.net/container"
+Downloads config.json from the specified blob storage URL and applies all configured settings.
 
 .EXAMPLE
 PS> run.ps1 -UseLocal
-Runs InitialDeviceConfig using the local config.json file from the DeviceConfig directory
-
-.EXAMPLE
-PS> run.ps1 -DeBloat
-Runs InitialDeviceConfig with the option to uninstall unwanted, built-in Windows apps
-
-.EXAMPLE
-PS> run.ps1 -Customize -UseLocal
-Runs InitialDeviceConfig with customizations using the local config.json file
+Uses the local config.json file from the DeviceConfig directory for all configuration.
 
 .NOTES
 Author: Steve Weiner
 Created: 2025-11-25
 Version: 1.0.0
-Dependencies: List modules or external requirements.
+Dependencies: Microsoft.WinGet.Client module (installed automatically when WinGet flag is enabled)
 License: Standard licensing applies.
-Notes: Based on AutopilotBranding, by Michael Niehaus
+Notes: Based on AutopilotBranding by Michael Niehaus. Creates logs at C:\ProgramData\IntuneDeviceConfig\PreFlightLog_<timestamp>.log
 
 #>
 
@@ -56,33 +54,39 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$startUtc = [datetime]::UtcNow
+
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
 . "$scriptPath\utils.ps1"
 
 # Determine config source and load configuration
 $configPath = "C:\ProgramData\IntuneDeviceConfig"
 $configFile = Join-Path $configPath "config.json"
+$date = Get-Date -Format "MM-dd-yyyy HH-mm"
+
+Start-Transcript -Path "$($configPath)\PreFlightLog_$($date).log"
+New-Item -Path $configPath -ItemType File -Name "PreFlightInstalled.txt" -Force
 
 if ($UseLocal) {
-    Write-Host "Using local config.json file..." -ForegroundColor Cyan
+    log "Using local config.json file..." -ForegroundColor Cyan
     $localConfigPath = Join-Path $PSScriptRoot "config.json"
     
     if (-not (Test-Path -Path $localConfigPath)) {
-        Write-Error "Local config.json not found at: $localConfigPath"
+        log "Local config.json not found at: $localConfigPath"
         exit 1
     }
     
     # Create target directory if it doesn't exist
     if (-not (Test-Path -Path $configPath)) {
-        New-Item -Path $configPath -ItemType Directory -Force | Out-Null
+        log -Path $configPath -ItemType Directory -Force | Out-Null
     }
     
     # Copy local config to working directory
     Copy-Item -Path $localConfigPath -Destination $configFile -Force
-    Write-Host "Local config.json copied successfully" -ForegroundColor Green
+    log "Local config.json copied successfully" -ForegroundColor Green
 }
 else {
-    Write-Host "Downloading config.json from blob storage..." -ForegroundColor Cyan
+    log "Downloading config.json from blob storage..." -ForegroundColor Cyan
 
     $blobUrl = $Url
     
@@ -94,10 +98,10 @@ else {
     # Download config.json from blob storage
     try {
         Invoke-WebRequest -Uri "$($blobUrl)\config.json" -OutFile $configFile -ErrorAction Stop
-        Write-Host "Config downloaded successfully from: $blobUrl" -ForegroundColor Green
+        log "Config downloaded successfully from: $blobUrl" -ForegroundColor Green
     }
     catch {
-        Write-Error "Failed to download config from blob storage: $_"
+        log "Failed to download config from blob storage: $_"
         exit 1
     }
 }
@@ -105,10 +109,10 @@ else {
 # Load the configuration
 try {
     $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
-    Write-Host "Configuration loaded successfully" -ForegroundColor Green
+    log "Configuration loaded successfully" -ForegroundColor Green
 }
 catch {
-    Write-Error "Failed to parse config.json: $_"
+    log "Failed to parse config.json: $_"
     exit 1
 }
 
@@ -119,9 +123,6 @@ if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64") {
         Exit $LASTEXITCODE
     }
 }
-
-# Start logging
-Start-Transcript "$($env:ProgramData)\IntuneDeviceConfig\DeviceConfig.log"
 
 # Exit if during OOBE
 $TypeDef = @"
@@ -305,6 +306,10 @@ if ($config.Config.Flags.DisableWidgets) {
     Set-ItemProperty -Path $dshPath -Name "AllowNewsAndInterests" -Value 0
 }
 
+# Disable network location fly-out
+log "Turning off network location notification"
+& reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f /reg:64 | Out-Null
+
 # =======================================
 # PHASE 5: SET TIME ZONE
 # =======================================
@@ -321,3 +326,177 @@ if (![string]::IsNullOrEmpty($config.Config.Settings.TimeZone)) {
 # =======================================
 # PHASE 6: REMOVE BLOATWARE
 # =======================================
+
+# Remove specific apps
+log "Removing bloatware"
+$apps = Get-AppxProvisionedPackage -online
+$bloatware = $config.Config.Settings.RemoveApps
+$bloatware | ForEach-Object {
+    $current = $_
+    $apps | Where-Object { $_.DisplayName -eq $current } | ForEach-Object {
+        try {
+            log "Removing provisioned app: $current"
+            $_ | Remove-AppxProvisionedPackage -Online -AllUsers -ErrorAction SilentlyContinue | Out-Null
+        }
+        catch { }
+    }
+}
+
+# Remove Copilot PWA
+if ($config.Config.Flags.RemoveCopilotPWA) {
+    log "Removing specified in-box provisioned apps"
+    reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoInstalledPWAs" /v CopilotPWAPreinstallCompleted /t REG_DWORD /d 1 /f /reg:64
+}
+
+# ===========================================
+# PHASE 7: PREVENT EDGE DESKTOP SHORTCUT
+# ===========================================
+log "Turning off (old) Edge desktop shortcut"
+& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+log "Turning off Edge desktop icon"
+& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 | Out-Null
+& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "RemoveDesktopShortcutDefault" /t REG_DWORD /d 2 /f /reg:64 | Out-Null
+if (Test-Path "C:\Users\Public\Desktop\Microsoft Edge.lnk") {
+    log "Removing Edge desktop shortcut"
+    Remove-Item "C:\Users\Public\Desktop\Microsoft Edge.lnk" -Force
+}
+
+# ===========================================
+# PHASE 8: REMOVE OEM BOOKMARKS (EDGE)
+# ===========================================
+$bookmarks = "C:\Users\Default\AppData\Local\Microsoft\Edge\User Data\Default\Bookmarks"
+if (Test-Path $bookmarks) {
+    log "Removing Edge bookmarks from default profile"
+    Remove-Item $bookmarks -Recurse -Force
+}
+$Bookmarksregpath = "HKLM:\SOFTWARE\Microsoft\MicrosoftEdge\Main\FavoriteBarItems"
+if (Test-Path $Bookmarksregpath) {
+    Remove-Item -Path $Bookmarksregpath -Recurse -Force
+    log "OEM bookmarks detected and removed"
+} else {
+    log "OEM bookmarks not found"
+}
+
+# ===========================================
+# PHASE 9: CUSTOMIZE WINDOWS FEATURES
+# ===========================================
+
+# Disable optional features
+$DisableOptionalFeatures = $config.Config.Settings.DisableOptionalFeatures
+if ($DisableOptionalFeatures.count -gt 0) {
+    try {
+        $EnabledOptionalFeatures = Get-WindowsOptionalFeature -Online | Where-Object { $_.State -eq "Enabled" }
+        foreach ($EnabledFeature in $EnabledOptionalFeatures) {
+            if ($DisableOptionalFeatures -contains $EnabledFeature.FeatureName) {
+                log "Disabling optional feature: $($EnabledFeature.FeatureName)"
+                try {
+                    Disable-WindowsOptionalFeature -Online -FeatureName $EnabledFeature.FeatureName -NoRestart | Out-Null
+                }
+                catch {}
+            }
+        }
+    } catch {
+        log "Unexpected error querying Windows optional features: $_"
+    }
+}
+
+# Add features on demand
+$AddFeatures = $config.Config.Settings.AddFeatures
+if ($AddFeatures.count -gt 0) {
+    foreach ($Feature in $AddFeatures) {
+        log "Adding Windows feature: $Feature"
+        try {
+            $result = Add-WindowsCapability -Online -Name $Feature
+            if ($result.RestartNeeded) {
+                log " Feature $Feature was installed requires a restart"
+            }
+        }
+        catch {
+            log " Unable to add Windows capability: $Feature"
+        }
+    }
+}
+
+# ===========================================
+# PHASE 10: INSTALL WINGET APPS
+# ===========================================
+if ($config.Config.Flags.WinGet) {
+    CheckNuGetProvider
+
+    log "Installing WinGet.Client module"
+    Install-Module -Name Microsoft.WinGet.Client -Force -Scope AllUsers -Repository PSGallery | Out-Null
+    log "Installing latest Winget package and dependencies"
+    Repair-WinGetPackageManager -Force -Latest | Out-Null
+    $VCppRedistributable_Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+    $VCppRedistributable_Path = Join-Path $configPath "vc_redist.x64.exe"
+
+    Invoke-WebRequest -Uri $VCppRedistributable_Url -OutFile $VCppRedistributable_Path -UseBasicParsing
+    Start-Process -FilePath $VCppRedistributable_Path -ArgumentList "/install", "/quiet", "/norestart" -Wait
+
+    $WinGetResolve = Resolve-Path "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*__8wekyb3d8bbwe\winget.exe"
+    $wingetExe = $WinGetResolve[-1].Path
+    $wingetVer = & "$wingetExe" --version
+    log "Winget version is: $wingetVer"
+
+    Remove-Item $VCppRedistributable_Path -Force
+
+    $WinGetInstall = $config.Config.Settings.WinGetInstall
+    if ($WinGetInstall.count -gt 0) {
+        foreach ($app in $WinGetInstall) {
+            log "WinGet installing: $app"
+            try {
+                & "$wingetExe" install $app --silent --scope machine --accept-package-agreements --accept-source-agreements
+            }
+            catch {
+                log "Winget installing error: $($_.Exception.Message)"
+            }
+        }
+    } else {
+        Log "Skipping WinGet installs"
+    }
+}
+
+# ===========================================
+# PHASE 11: DISABLE ADP SCREENS (APv2 ONLY)
+# ===========================================
+if ($config.Config.Flags.APv2) {
+    $registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE"
+    New-ItemProperty -Path $registryPath -Name "DisablePrivacyExperience" -Value 1 -PropertyType DWORD -Force | Out-Null
+    New-ItemProperty -Path $registryPath -Name "DisableVoice" -Value 1 -PropertyType DWORD -Force | Out-Null
+    New-ItemProperty -Path $registryPath -Name "PrivacyConsentStatus" -Value 1 -PropertyType DWORD -Force | Out-Null
+    New-ItemProperty -Path $registryPath -Name "ProtectYourPC" -Value 3 -PropertyType DWORD -Force | Out-Null
+    log "APv2 extra pages disabled"
+} else {
+    log "Skipping APv2 modification"
+}
+
+# ====================
+# PHASE 12: CLEANUP
+# ====================
+
+# Unload default user registry
+log "Unloading default user registry hive"
+reg.exe unload HKLM\TempUser | Out-Null
+
+# Skip first sign-in animation
+log "Skipping first sign-in animation"
+$registryPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+New-ItemProperty -Path $registryPath -Name "EnableFirstLogonAnimation" -Value 0 -PropertyType DWORD -Force | Out-Null
+New-ItemProperty -Path $registryPath -Name "DelayedDesktopSwitchTimeout" -Value 0 -PropertyType DWORD -Force | Out-Null
+
+$stopUtc = [datetime]::UtcNow
+
+# Calculate run time
+$runTime = $stopUtc - $startUtc
+
+if ($runTime.TotalHours -ge 1) {
+    $runTimeFormatted = 'Duration: {0:hh} hr {0:mm} min {0:ss} sec' -f $runTime
+}
+else {
+    $runTimeFormatted = 'Duration: {0:mm} min {0:ss} sec' -f $runTime
+}
+
+log "PreFlight complete"
+log "Total Script time: $($runTimeFormatted)"
+
+Stop-Transcript

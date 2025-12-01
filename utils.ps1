@@ -10,7 +10,7 @@ function log() {
     Write-Output "$ts $message"`
 }
 
-function Check-NuGetProvider {
+function CheckNuGetProvider {
     [CmdletBinding()]
     param (
         [version]$MinimumVersion = [version]'2.8.5.201'

@@ -2,21 +2,15 @@
   "Config": {
     "Flags": {
       "LeftAlignStart": true,
-      "Updates": false,
-      "WinGet": false,
-      "HideWidgets": false,
-      "StartLayout": false,
-      "TaskbarLayout": false,
-      "Theme": false,
-      "LockScreen": false,
-      "AutoinstallingApps": false,
-      "ShowDesktopFaster": false,
+      "WinGet": true,
+      "HideWidgets": true,
+      "StartLayout": true,
+      "TaskbarLayout": true,
+      "Desktop": true,
+      "LockScreen": true,
       "APv2": false,
-      "EdgeUpdate": false,
       "RemoveCopilotPWA": true,
-      "EnterpriseGVLK": true,
-      "DisableWidgets": true,
-      "ChromeConfig": false
+      "DisableWidgets": true
     },
 
     "Settings": {
@@ -54,21 +48,12 @@
         "Microsoft.XboxGamingOverlay",
         "Microsoft.XboxIdentityProvider",
         "Microsoft.XboxSpeechToTextOverlay",
-        "MicrosoftCorporationII.MicrosoftFamily",
-        "MicrosoftTeams",
-        "MSTeams",
-        "9NHT9RB2F4HD"
+        "MicrosoftCorporationII.MicrosoftFamily"
       ],
 
       "WinGetInstall": [
-        "Google.Chrome",
-        "9WZDNCRD29V9"
+        "Google.Chrome"
       ],
-
-      "OneDriveSetup": "https://go.microsoft.com/fwlink/?linkid=844652",
-      "OneDriveARMSetup": "https://go.microsoft.com/fwlink/?linkid=2282608",
-      "EdgeBusinessMSI": "https://go.microsoft.com/fwlink/?LinkID=2093437",
-      "EdgeBusinessARM": "",
 
       "AddFeatures": [
         "Microsoft.Windows.Sense.Client~~~~",
@@ -85,22 +70,7 @@
       "RemoveCapability": [
         "App.StepsRecorder",
         "Microsoft.Windows.PowerShell.ISE"
-      ],
-
-      "Language": "",
-      "DefaultApps": "Associations.xml",
-
-      "RegisteredOwner": "Autopilot User",
-      "RegisteredOrganization": "Contoso",
-
-      "OEMInfo": {
-        "Manufacturer": "Contoso",
-        "Model": "PC",
-        "Logo": "Contoso.bmp",
-        "SupportPhone": "+1 800-555-1212",
-        "SupportHours": "8am-5pm PST",
-        "SupportURL": "http://www.contoso.com"
-      }
+      ]
     }
   }
 }
