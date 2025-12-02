@@ -136,73 +136,71 @@ reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
 # =======================================
 # PHASE 2: CUSTOMIZATION
 # =======================================
-log "Checking if Customize is enabled..."
-if ($Customize) {
-    log "Applying custom theme and wallpaper"
-    # Apply a custom start menu
-    if ($config.Config.Flags.StartLayout) {
-        log "Copying Start menu layout"
-        $localStatePath = "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState"
-        mkdir -Path $localStatePath -Force -ErrorAction SilentlyContinue | Out-Null
-        Copy-Item "$($configPath)\Start2.bin" "$($localStatePath)\Start2.bin" -Force
-        log "Copying Start menu settings"
-        $settingsPath = "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\Settings"
-        mkdir -Path $settingsPath -Force -ErrorAction SilentlyContinue | Out-Null
-        Copy-Item "$($configPath)\settings.dat" "$($settingsPath)\Settings.settings.dat" -Force
-    }
-    else {
-        log "Skipping Start layout"
-    }
-
-    # Taskbar
-    if ($config.Config.Flags.TaskbarLayout) {
-        log "Importing Taskbar Layout"
-        $OEMPath = "C:\Windows\OEM"
-        mkdir -Path $OEMPath -Force -ErrorAction SilentlyContinue | Out-Null
-        Copy-Item "$($configPath)\TaskbarLayoutModification.xml" "$($OEMPath)\TaskbarLayoutModification.xml" -Force
-        reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 | Out-Null
-        Log "Unpin Microsoft Store app from taskbar"
-        reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 | Out-Null
-    }
-    else {
-        Log "Skipping Taskbar Layout"
-    }
-
-    # Configure desktop background
-    if ($config.Config.Flags.Desktop) {
-        log "Setting desktop background"
-        $OEMThemes = "C:\Windows\Resources\OEM Themes"
-        mkdir $OEMThemes -Force | Out-Null
-        Copy-Item "$($configPath)\Autopilot.theme" "$($OEMThemes)\Autopilot.theme" -Force
-        $wallpaperPath = "C:\Windows\web\wallpaper\Autopilot"
-        mkdir $wallpaperPath -Force | Out-Null
-        Copy-Item "$($configPath)\Autopilot.jpg" "$($wallpaperPath)\Autopilot.jpg" -Force
-        log "Setting Autopilot theme as new user default"
-        reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
-        reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
-    }
-    else {
-        log "Skipping desktop background"
-    }
-
-    if ($config.Config.Flags.LockScreen) {
-        log "Configuring lock screen image"
-        $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP"
-        $wallpaperPath = "C:\Windows\web\wallpaper\Autopilot"
-        mkdir $wallpaperPath -Force | Out-Null
-        Copy-Item "$($configPath)\AutopilotLock.jpg" "$($wallpaperPath)\AutopilotLock.jpg"
-        $LockScreenImage = "C:\Windows\web\wallpaper\Autopilot\AutopilotLock.jpg"
-        if (!(Test-Path -Path $RegPath)) {
-            New-Item -Path $RegPath -Force | Out-Null
-        }
-        New-ItemProperty -Path $RegPath -Name LockScreenImagePath -Value $LockScreenImage -PropertyType String -Force | Out-Null
-        New-ItemProperty -Path $RegPath -Name LockScreenImageUrl -Value $LockScreenImage -PropertyType String -Force | Out-Null
-        New-ItemProperty -Path $RegPath -Name LockScreenImageStatus -Value 1 -PropertyType DWORD -Force | Out-Null
-    }
-    else {
-        log "Skipping lock screen image"
-    }
+log "Applying custom theme and wallpaper"
+# Apply a custom start menu
+if ($config.Config.Flags.StartLayout) {
+    log "Copying Start menu layout"
+    $localStatePath = "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState"
+    mkdir -Path $localStatePath -Force -ErrorAction SilentlyContinue | Out-Null
+    Copy-Item "$($configPath)\Start2.bin" "$($localStatePath)\Start2.bin" -Force
+    log "Copying Start menu settings"
+    $settingsPath = "C:\Users\Default\AppData\Local\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\Settings"
+    mkdir -Path $settingsPath -Force -ErrorAction SilentlyContinue | Out-Null
+    Copy-Item "$($configPath)\settings.dat" "$($settingsPath)\Settings.settings.dat" -Force
 }
+else {
+    log "Skipping Start layout"
+}
+
+# Taskbar
+if ($config.Config.Flags.TaskbarLayout) {
+    log "Importing Taskbar Layout"
+    $OEMPath = "C:\Windows\OEM"
+    mkdir -Path $OEMPath -Force -ErrorAction SilentlyContinue | Out-Null
+    Copy-Item "$($configPath)\TaskbarLayoutModification.xml" "$($OEMPath)\TaskbarLayoutModification.xml" -Force
+    reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 | Out-Null
+    Log "Unpin Microsoft Store app from taskbar"
+    reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+}
+else {
+    Log "Skipping Taskbar Layout"
+}
+
+# Configure desktop background
+if ($config.Config.Flags.Desktop) {
+    log "Setting desktop background"
+    $OEMThemes = "C:\Windows\Resources\OEM Themes"
+    mkdir $OEMThemes -Force | Out-Null
+    Copy-Item "$($configPath)\Autopilot.theme" "$($OEMThemes)\Autopilot.theme" -Force
+    $wallpaperPath = "C:\Windows\web\wallpaper\Autopilot"
+    mkdir $wallpaperPath -Force | Out-Null
+    Copy-Item "$($configPath)\Autopilot.jpg" "$($wallpaperPath)\Autopilot.jpg" -Force
+    log "Setting Autopilot theme as new user default"
+    reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
+    reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
+}
+else {
+    log "Skipping desktop background"
+}
+
+if ($config.Config.Flags.LockScreen) {
+    log "Configuring lock screen image"
+    $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP"
+    $wallpaperPath = "C:\Windows\web\wallpaper\Autopilot"
+    mkdir $wallpaperPath -Force | Out-Null
+    Copy-Item "$($configPath)\AutopilotLock.jpg" "$($wallpaperPath)\AutopilotLock.jpg"
+    $LockScreenImage = "C:\Windows\web\wallpaper\Autopilot\AutopilotLock.jpg"
+    if (!(Test-Path -Path $RegPath)) {
+        New-Item -Path $RegPath -Force | Out-Null
+    }
+    New-ItemProperty -Path $RegPath -Name LockScreenImagePath -Value $LockScreenImage -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $RegPath -Name LockScreenImageUrl -Value $LockScreenImage -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $RegPath -Name LockScreenImageStatus -Value 1 -PropertyType DWORD -Force | Out-Null
+}
+else {
+    log "Skipping lock screen image"
+}
+
 
 # =======================================
 # PHASE 3: SPOTLIGHT BEHAVIOR
@@ -443,6 +441,7 @@ log "Total Script time: $($runTimeFormatted)"
 
 try {
     Stop-Transcript
-} catch {
+}
+catch {
     log "Warning: Could not stop transcript: $($_.Exception.Message)"
 }
