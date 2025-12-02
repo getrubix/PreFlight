@@ -3,7 +3,7 @@
     "Flags": {
       "LeftAlignStart": true,
       "WinGet": true,
-      "HideWidgets": true,
+      "DisableWidgets": true,
       "StartLayout": true,
       "TaskbarLayout": true,
       "Desktop": true,
