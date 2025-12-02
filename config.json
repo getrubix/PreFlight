@@ -2,7 +2,7 @@
   "Config": {
     "Flags": {
       "LeftAlignStart": true,
-      "WinGet": true,
+      "WinGet": false,
       "DisableWidgets": true,
       "StartLayout": true,
       "TaskbarLayout": true,

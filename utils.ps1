@@ -7,7 +7,7 @@ function log() {
     )
 
     $ts = Get-Date -f "yyyy/MM/dd hh:mm:ss tt"
-    Write-Output "$ts $message"`
+    Write-Output "$ts $message"
 }
 
 function CheckNuGetProvider {

@@ -39,20 +39,20 @@ Notes: Based on AutopilotBranding by Michael Niehaus. Creates logs at C:\Program
 
 #>
 
-[CmdletBinding()]
+<#[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
     [switch]$UseLocal,
 
     [Parameter(Mandatory = $false)]
     [string]$Url
-)
+)#>
 
 # =======================================
 # PHASE 0: Preparing
 # =======================================
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'SilentlyContinue'
 
 $startUtc = [datetime]::UtcNow
 
@@ -67,70 +67,36 @@ if (-not (Test-Path -Path $configPath)) {
     New-Item -Path $configPath -ItemType Directory -Force | Out-Null
 }
 
-$configFile = Join-Path $configPath "config.json"
 $date = Get-Date -Format "MM-dd-yyyy HH-mm"
 
+Start-Transcript "$($configPath)\PreFlightLog_$($date).log"
 
-# Start transcript with error handling
-try {
-    Start-Transcript -Path "$($configPath)\PreFlightLog_$($date).log" -ErrorAction SilentlyContinue
-} catch {
-    Write-Host "Warning: Could not start transcript: $_"
-}
+log "Starting PreFlight..."
 
+log "Creating intune detection rule"
 New-Item -Path $configPath -ItemType File -Name "PreFlightInstalled.txt" -Force | Out-Null
+log "Created $($configPath)\PreFlightInstalled.txt"
 
-# Prevent duplicate Phase 0 work if script invoked multiple times
-$initMarker = Join-Path $configPath "InitPhase0.marker"
-if (Test-Path $initMarker) {
-    log "Initialization marker detected - skipping config sourcing (duplicate invocation)."
-} else {
-    New-Item -Path $initMarker -ItemType File -Force | Out-Null
-
-    if ($UseLocal) {
-        log "Config source: Local (-UseLocal)"
-        $localConfigPath = Join-Path $PSScriptRoot "config.json"
-        if (-not (Test-Path -Path $localConfigPath)) {
-            log "Local config.json not found at: $localConfigPath"
-            exit 1
-        }
-        Copy-Item -Path $localConfigPath -Destination $configFile -Force
-        log "Local config.json copied successfully"
+log "Copying local files to $($configPath)..."
+$preFlightFiles = Get-ChildItem -Path ".\*"
+foreach ($file in $preFlightFiles) {
+    try {
+        Copy-Item -Path $file.FullName -Destination $configPath -Force
+        log "Coppied file $($file.FullName) to $configPath"
     }
-    else {
-        if ([string]::IsNullOrWhiteSpace($Url)) {
-            log "No Url provided and -UseLocal not specified. Cannot source configuration. Exiting."
-            exit 1
-        }
-        $blobUrl = $Url.TrimEnd('/')
-        log "Config source: Remote ($blobUrl)"
-        try {
-            Invoke-WebRequest -Uri "$($blobUrl)/config.json" -OutFile $configFile -ErrorAction Stop
-            log "Config downloaded successfully from: $blobUrl"
-        }
-        catch {
-            log "Failed to download config from blob storage: $_"
-            exit 1
-        }
+    catch {
+        log "Error copying $($file.FullName): $($_.Exception.Message)"
     }
 }
 
 # Load the configuration
 try {
-    $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
+    $config = Get-Content -Path "$($configPath)\config.json" -Raw | ConvertFrom-Json
     log "Configuration loaded successfully"
 }
 catch {
     log "Failed to parse config.json: $_"
     exit 1
-}
-
-# Check architecture
-if ("$env:PROCESSOR_ARCHITEW6432" -ne "ARM64") {
-    if (Test-Path "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe") {
-        & "$($env:WINDIR)\SysNative\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy bypass -NoProfile -File "$PSCommandPath"
-        Exit $LASTEXITCODE
-    }
 }
 
 # Exit if during OOBE
@@ -157,39 +123,22 @@ if ($IsOOBEComplete) {
     try { Stop-Transcript -ErrorAction Stop } catch { Write-Host "Warning: Could not stop transcript (early exit): $_" }
     exit 0
 }
+else {
+    log "PC is in OOBE, proceeding with PreFlight"
+}
 
 # =======================================
 # PHASE 1: LOAD DEFAULT USER REGISTRY
 # =======================================
 log "Loading default user registry hive NTUSER.DAT (TempUser)"
-& reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
+reg.exe load HKLM\TempUser "C:\Users\Default\NTUSER.DAT" | Out-Null
 
 # =======================================
 # PHASE 2: CUSTOMIZATION
 # =======================================
 log "Checking if Customize is enabled..."
 if ($Customize) {
-    log "Customize is enabled, getting assets..."
-    $customFiles = @(
-        "DeviceConfig.theme"
-        "Start2.bin"
-        "TaskbarLayoutModification.xml"
-        "settings.dat"
-        "Autopilot.theme"
-        "Autopilot.jpg"
-        "AutopilotLock.jpg"
-    )
-    if ($UseLocal) {
-        foreach ($file in $customFiles) {
-            Copy-Item -Path "$($PSScriptRoot)\$($file)" -Destination "$($configPath)\$($file)" -Recurse -Force 
-        }    
-    }
-    else {
-        foreach ($file in $customFiles) {
-            Invoke-WebRequest -Uri "$($blobUrl)\$($file)" -OutFile "$($configPath)\$($file)"
-        }
-    }
-
+    log "Applying custom theme and wallpaper"
     # Apply a custom start menu
     if ($config.Config.Flags.StartLayout) {
         log "Copying Start menu layout"
@@ -211,9 +160,9 @@ if ($Customize) {
         $OEMPath = "C:\Windows\OEM"
         mkdir -Path $OEMPath -Force -ErrorAction SilentlyContinue | Out-Null
         Copy-Item "$($configPath)\TaskbarLayoutModification.xml" "$($OEMPath)\TaskbarLayoutModification.xml" -Force
-        & reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 | Out-Null
+        reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v LayoutXMLPath /t REG_EXPAND_SZ /d "%SystemRoot%\OEM\TaskbarLayoutModification.xml" /f /reg:64 | Out-Null
         Log "Unpin Microsoft Store app from taskbar"
-        & reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+        reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\Explorer" /v NoPinningStoreToTaskbar /t REG_DWORD /d 1 /f /reg:64 | Out-Null
     }
     else {
         Log "Skipping Taskbar Layout"
@@ -229,8 +178,8 @@ if ($Customize) {
         mkdir $wallpaperPath -Force | Out-Null
         Copy-Item "$($configPath)\Autopilot.jpg" "$($wallpaperPath)\Autopilot.jpg" -Force
         log "Setting Autopilot theme as new user default"
-        & reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
-        & reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
+        reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v InstallTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
+        reg.exe add "HKLM\TempUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes" /v CurrentTheme /t REG_EXPAND_SZ /d "%SystemRoot%\resources\OEM Themes\Autopilot.theme" /f /reg:64 | Out-Null
     }
     else {
         log "Skipping desktop background"
@@ -260,14 +209,14 @@ if ($Customize) {
 # =======================================
 
 # Stop Start menu from opening on first logon
-& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f /reg:64 | Out-Null
 
 # Hide "Lean more about this picture" from desktop
-& reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" /v "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" /t REG_DWORD /d 1 /f /reg:64 | Out-Null
 
 # Disable Windows Spotlight so wallpaper works
 log "Disabling Windows Spotlight for Desktop"
-& reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+reg.exe add "HKLM\TempUser\Software\Policies\Microsoft\Windows\CloudContent" /v DisableSpotlightCollectionOnDesktop /t REG_DWORD /d 1 /f /reg:64 | Out-Null
 
 # =======================================
 # PHASE 4: NORMALIZE TASKBAR
@@ -276,12 +225,13 @@ log "Disabling Windows Spotlight for Desktop"
 # Left align start button (users can still change back)
 if ($config.Config.Flags.LeftAlignStart) {
     log "Configuring left aligned Start menu"
-    & reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f /reg:64 | Out-Null
+    reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v TaskbarAl /t REG_DWORD /d 0 /f /reg:64 | Out-Null
 }
 else {
     log "Skipping left align start"
 }
 
+# Disable Widgets
 if ($config.Config.Flags.DisableWidgets) {
     log "Disabling Widgets"
     $regDsh = "HKLM:\Software\Policies\Microsoft\Dsh"
@@ -295,7 +245,7 @@ if ($config.Config.Flags.DisableWidgets) {
 
 # Disable network location fly-out
 log "Turning off network location notification"
-& reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f /reg:64 | Out-Null
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f /reg:64 | Out-Null
 
 # =======================================
 # PHASE 5: SET TIME ZONE
@@ -333,17 +283,17 @@ $bloatware | ForEach-Object {
 # Remove Copilot PWA
 if ($config.Config.Flags.RemoveCopilotPWA) {
     log "Removing specified in-box provisioned apps"
-    & reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoInstalledPWAs" /v CopilotPWAPreinstallCompleted /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+    reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoInstalledPWAs" /v CopilotPWAPreinstallCompleted /t REG_DWORD /d 1 /f /reg:64 | Out-Null
 }
 
 # ===========================================
 # PHASE 7: PREVENT EDGE DESKTOP SHORTCUT
 # ===========================================
 log "Turning off (old) Edge desktop shortcut"
-& reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Null
+reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v DisableEdgeDesktopShortcutCreation /t REG_DWORD /d 1 /f /reg:64 | Out-Null
 log "Turning off Edge desktop icon"
-& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 | Out-Null
-& reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "RemoveDesktopShortcutDefault" /t REG_DWORD /d 2 /f /reg:64 | Out-Null
+reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "CreateDesktopShortcutDefault" /t REG_DWORD /d 0 /f /reg:64 | Out-Null
+reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\EdgeUpdate" /v "RemoveDesktopShortcutDefault" /t REG_DWORD /d 2 /f /reg:64 | Out-Null
 if (Test-Path "C:\Users\Public\Desktop\Microsoft Edge.lnk") {
     log "Removing Edge desktop shortcut"
     Remove-Item "C:\Users\Public\Desktop\Microsoft Edge.lnk" -Force
@@ -468,7 +418,7 @@ else {
 
 # Unload default user registry
 log "Unloading default user registry hive"
-& reg.exe unload HKLM\TempUser | Out-Null
+reg.exe unload HKLM\TempUser | Out-Null
 
 # Skip first sign-in animation
 log "Skipping first sign-in animation"
