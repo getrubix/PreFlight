@@ -99,7 +99,7 @@ catch {
     exit 1
 }
 
-# Exit if during OOBE
+# Exit if not during OOBE
 $TypeDef = @"
 using System;
 using System.Text;
@@ -239,6 +239,13 @@ if ($config.Config.Flags.DisableWidgets) {
     Set-ItemProperty -Path $regDsh -Name "DisableWidgetsOnLockScreen" -Value 1
     Set-ItemProperty -Path $regDsh -Name "DisableWidgetsBoard" -Value 1
     Set-ItemProperty -Path $regDsh -Name "AllowNewsAndInterests" -Value 0
+}
+
+# Taskbar Search icon
+if ($null -ne $config.Config.Flags.SearchBar) {
+    $value = $($config.Config.Flags.SearchBar)
+    log "Modifying search icon..."
+    reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Search" /v SearchboxTaskbarMode /t REG_DWORD /d $value /f /reg:64 | Out-Null
 }
 
 # Disable network location fly-out
@@ -410,8 +417,15 @@ else {
     log "Skipping APv2 modification"
 }
 
+# ==============================
+# PHASE 12: ADDITIONAL REG KEYS
+# ==============================
+
+# Use this section to add additional customizations to HKLM or HKLM:\TempUser
+
+
 # ====================
-# PHASE 12: CLEANUP
+# PHASE 13: CLEANUP
 # ====================
 
 # Unload default user registry
