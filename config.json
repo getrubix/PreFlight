@@ -9,7 +9,8 @@
       "Desktop": true,
       "LockScreen": true,
       "APv2": false,
-      "RemoveCopilotPWA": true
+      "RemoveCopilotPWA": true,
+      "SearchBar": 1
     },
 
     "Settings": {
