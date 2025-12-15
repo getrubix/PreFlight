@@ -10,7 +10,8 @@
       "LockScreen": true,
       "APv2": false,
       "RemoveCopilotPWA": true,
-      "SearchBar": 1
+      "SearchBar": 1,
+      "OneDrive": true
     },
 
     "Settings": {
@@ -51,6 +52,7 @@
         "MicrosoftCorporationII.MicrosoftFamily"
       ],
 
+      "OneDriveInstall": "https://go.microsoft.com/fwlink/?linkid=844652",
       "WinGetInstall": [
         "Google.Chrome"
       ],

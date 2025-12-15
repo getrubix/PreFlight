@@ -291,6 +291,20 @@ if ($config.Config.Flags.RemoveCopilotPWA) {
     reg.exe add "HKLM\TempUser\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoInstalledPWAs" /v CopilotPWAPreinstallCompleted /t REG_DWORD /d 1 /f /reg:64 | Out-Null
 }
 
+# Update OneDrive
+if ($config.Config.Flags.OneDrive) {
+    $dest = "$($env:TEMP)\OneDriveSetup.exe"
+    $client = New-Object System.Net.WebClient
+    $url = $config.Config.Settings.OneDriveInstall
+    log "Downloading OneDriveSetup: $($url)"
+    $client.DownloadFile($url, $dest)
+    Log "Installing: $dest"
+    $proc = Start-Process $dest -ArgumentList "/allusers /silent" -WindowStyle Hidden -PassThru
+    $proc.WaitForExit()
+    Log "OneDriveSetup exit code: $($proc.ExitCode)"
+}
+
+
 # ===========================================
 # PHASE 7: PREVENT EDGE DESKTOP SHORTCUT
 # ===========================================
