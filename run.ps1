@@ -69,7 +69,7 @@ if (-not (Test-Path -Path $configPath)) {
 
 $date = Get-Date -Format "MM-dd-yyyy HH-mm"
 
-Start-Transcript "$($configPath)\PreFlightLog_$($date).log"
+Start-Transcript "C:\ProgramData\Microsoft\IntuneManagementExtension\Logs\PreFlightLog_$($date).log"
 
 log "Starting PreFlight..."
 
