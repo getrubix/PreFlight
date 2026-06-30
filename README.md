@@ -11,6 +11,7 @@ PreFlight performs 12 phases of device configuration:
 - **Time Zone Configuration**: Automatically configures device time zone
 - **Windows Features Management**: Enable/disable optional Windows features
 - **WinGet Application Installation**: Automated app deployment via WinGet
+- **Language Pack Installation**: Installs Language Experience Packs (and optionally sets the system UI language) via `Install-Language`
 - **Autopilot v2 Optimization**: Disables privacy and voice screens for streamlined setup
 - **Registry Tweaks**: Taskbar alignment, widgets management, Edge shortcuts, and more
 - **Default User Profile**: Configures settings for all new users on the device
@@ -59,7 +60,9 @@ Boolean flags to enable/disable specific features:
       "LockScreen": true,            // Apply lock screen wallpaper
       "APv2": false,                 // Enable Autopilot v2 optimizations
       "RemoveCopilotPWA": true,      // Remove Copilot PWA
-      "SearchBar": 1                 // Search bar configuration
+      "SearchBar": 1,                // Search bar configuration
+      "OneDrive": true,              // Install OneDrive
+      "LanguagePacks": false         // Enable language pack installation
     }
   }
 }
@@ -80,7 +83,9 @@ Configuration options for various features:
     ],
     "DisableOptionalFeatures": [],   // Windows features to disable
     "AddFeatures": [],               // Windows capabilities to add
-    "WinGetInstall": []              // Apps to install via WinGet
+    "WinGetInstall": [],             // Apps to install via WinGet
+    "LanguagePackInstall": [],       // Language tags to install (e.g. "fr-CA")
+    "SetSystemLanguage": ""          // Optional: set system UI language (e.g. "fr-CA")
   }
 }
 ```
@@ -191,6 +196,46 @@ To find app package names:
 Get-AppxProvisionedPackage -Online | Select-Object DisplayName, PackageName
 ```
 
+### Installing a Language Pack
+
+PreFlight can install Windows Language Experience Packs during provisioning using the built-in `Install-Language` cmdlet. This pulls the LXP **and** its companion features automatically (handwriting, OCR, text-to-speech, and fonts) — you do **not** need to list those separately under `AddFeatures`.
+
+**Steps:**
+
+1. Set the `LanguagePacks` flag to `true`.
+2. Add one or more [BCP-47 language tags](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/available-language-packs-for-windows) to `LanguagePackInstall`.
+3. *(Optional)* Set `SetSystemLanguage` to make one of those languages the system-preferred UI language.
+
+**Example — French (Canada):**
+
+```json
+{
+  "Config": {
+    "Flags": {
+      "LanguagePacks": true
+    },
+    "Settings": {
+      "LanguagePackInstall": ["fr-CA"],
+      "SetSystemLanguage": "fr-CA"
+    }
+  }
+}
+```
+
+You can install multiple languages in one build:
+
+```json
+"LanguagePackInstall": ["fr-CA", "es-ES"]
+```
+
+**Notes:**
+
+- **Internet is required at runtime.** `Install-Language` downloads packs from Windows Update / the Microsoft CDN. On networks that block Windows Update, configure a feature source (WSUS / `Specify settings for optional component installation`) or the install will fail (it logs the error and continues — it does not stop the run).
+- **`SetSystemLanguage` only switches the OS UI language.** Leave it empty (`""`) to make a pack *available* for users to select while keeping the default UI language. The change takes effect after the device restarts.
+- **Installs are idempotent** — already-installed languages are detected via `Get-InstalledLanguage` and skipped on re-runs.
+- **OS support:** `Install-Language` requires Windows 10 21H2+ or Windows 11. On older builds the step is skipped and logged.
+- This step does **not** change the keyboard layout or regional formats (date/currency). Those are handled separately via `Set-WinUserLanguageList` / `Set-Culture` and are not currently managed by PreFlight.
+
 ## Execution Flow
 
 1. **Phase 0**: Initialization
@@ -206,7 +251,7 @@ Get-AppxProvisionedPackage -Online | Select-Object DisplayName, PackageName
 7. **Phase 6**: Remove bloatware apps
 8. **Phase 7**: Prevent Edge desktop shortcuts
 9. **Phase 8**: Remove OEM bookmarks
-10. **Phase 9**: Customize Windows features
+10. **Phase 9**: Customize Windows features (and install language packs, if enabled)
 11. **Phase 10**: Install WinGet apps (if enabled)
 12. **Phase 11**: Disable ADP screens (Autopilot v2)
 13. **Phase 12**: Cleanup and finalize
