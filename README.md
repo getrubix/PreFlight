@@ -85,6 +85,7 @@ Configuration options for various features:
     "AddFeatures": [],               // Windows capabilities to add
     "WinGetInstall": [],             // Apps to install via WinGet
     "LanguagePackInstall": [],       // Language tags to install (e.g. "fr-CA")
+    "LanguagePackSource": "",        // Optional: local folder of language files (offline install)
     "SetSystemLanguage": ""          // Optional: set system UI language (e.g. "fr-CA")
   }
 }
@@ -228,11 +229,53 @@ You can install multiple languages in one build:
 "LanguagePackInstall": ["fr-CA", "es-ES"]
 ```
 
+#### Offline install (bundling `.cab` files in the package)
+
+For locked-down networks (or to avoid Windows Update downloads at provisioning time), you can ship the language files **inside the package** and install them offline. Set `LanguagePackSource` to a folder, and PreFlight uses DISM-based offline installation instead of `Install-Language`. If `LanguagePackSource` is empty (or the folder isn't found), it falls back to the online method automatically.
+
+**Folder layout** — create one subfolder per language tag under the source folder:
+
+```text
+PreFlight/
+└── LangPacks/                     <- LanguagePackSource
+    └── fr-CA/                     <- one subfolder per language tag
+        ├── Microsoft-Windows-Client-Language-Pack_x64_fr-ca.cab   (base language pack)
+        ├── Microsoft-Windows-LanguageFeatures-Basic-fr-ca-Package~...cab          (Features on Demand)
+        ├── Microsoft-Windows-LanguageFeatures-Handwriting-fr-ca-Package~...cab
+        ├── Microsoft-Windows-LanguageFeatures-OCR-fr-ca-Package~...cab
+        ├── Microsoft-Windows-LanguageFeatures-Speech-fr-ca-Package~...cab
+        ├── Microsoft-Windows-LanguageFeatures-TextToSpeech-fr-ca-Package~...cab
+        ├── LanguageExperiencePack.fr-CA.Neutral.appx              (LXP)
+        └── License.xml                                            (LXP license)
+```
+
+PreFlight applies every `.cab` in the folder (base language pack first, then Features on Demand), then provisions any `.appx`/`.appxbundle` LXP, using the `.xml` as its license.
+
+**Config:**
+
+```json
+{
+  "Config": {
+    "Flags": { "LanguagePacks": true },
+    "Settings": {
+      "LanguagePackInstall": ["fr-CA"],
+      "LanguagePackSource": "LangPacks",
+      "SetSystemLanguage": "fr-CA"
+    }
+  }
+}
+```
+
+`LanguagePackSource` accepts a path relative to the package root (as above) or an absolute path. Include the `LangPacks` folder when you build the `.intunewin`.
+
+**Where to get the files** — the `.cab` files come from the **"Language Pack" ISO** and the **"Features on Demand" ISO** for your exact Windows build; the LXP `.appx` + `License.xml` come from the **LXP ISO**. All three are available via the Microsoft Volume Licensing Service Center (VLSC) / Microsoft 365 admin center. **The files are build-specific** — e.g. a 23H2 `.cab` will not apply to a 24H2 image, so match the ISO to the OS version you're deploying.
+
 **Notes:**
 
-- **Internet is required at runtime.** `Install-Language` downloads packs from Windows Update / the Microsoft CDN. On networks that block Windows Update, configure a feature source (WSUS / `Specify settings for optional component installation`) or the install will fail (it logs the error and continues — it does not stop the run).
+- **Online mode requires internet at runtime.** When `LanguagePackSource` is empty, `Install-Language` downloads packs from Windows Update / the Microsoft CDN. On networks that block Windows Update, either use the offline mode above or configure a feature source (WSUS / `Specify settings for optional component installation`), otherwise the install will fail (it logs the error and continues — it does not stop the run).
 - **`SetSystemLanguage` only switches the OS UI language.** Leave it empty (`""`) to make a pack *available* for users to select while keeping the default UI language. The change takes effect after the device restarts.
-- **Installs are idempotent** — already-installed languages are detected via `Get-InstalledLanguage` and skipped on re-runs.
+- **Installs are idempotent** — already-installed languages are detected via `Get-InstalledLanguage` and skipped on re-runs (applies to both modes).
+- **Offline mode does not auto-copy the language to the welcome screen / new-user profiles** the way online `Install-Language -CopyToSettings` does. Set `SetSystemLanguage` to propagate it system-wide.
 - **OS support:** `Install-Language` requires Windows 10 21H2+ or Windows 11. On older builds the step is skipped and logged.
 - This step does **not** change the keyboard layout or regional formats (date/currency). Those are handled separately via `Set-WinUserLanguageList` / `Set-Culture` and are not currently managed by PreFlight.
 

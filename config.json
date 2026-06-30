@@ -64,6 +64,7 @@
       ],
 
       "LanguagePackInstall": [],
+      "LanguagePackSource": "",
       "SetSystemLanguage": "",
 
       "DisableOptionalFeatures": [

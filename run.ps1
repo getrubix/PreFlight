@@ -376,23 +376,54 @@ if ($AddFeatures.count -gt 0) {
     }
 }
 
-# Install language packs (Language Experience Packs + associated features)
+# Install language packs (Language Experience Packs + associated features).
+# If LanguagePackSource points to a folder of local files, install offline;
+# otherwise fall back to the online Install-Language cmdlet.
 $LanguagePackInstall = $config.Config.Settings.LanguagePackInstall
 if ($config.Config.Flags.LanguagePacks -and $LanguagePackInstall.count -gt 0) {
-    if (Get-Command Install-Language -ErrorAction SilentlyContinue) {
-        $InstalledLanguages = (Get-InstalledLanguage).LanguageId
+    $LanguagePackSource = $config.Config.Settings.LanguagePackSource
+
+    # Resolve the local source folder; relative paths are resolved against the
+    # package directory so bundled files can be referenced by name.
+    if (-not [string]::IsNullOrWhiteSpace($LanguagePackSource) -and
+        -not [System.IO.Path]::IsPathRooted($LanguagePackSource)) {
+        $LanguagePackSource = Join-Path $scriptPath $LanguagePackSource
+    }
+
+    $useOffline = (-not [string]::IsNullOrWhiteSpace($LanguagePackSource)) -and (Test-Path $LanguagePackSource)
+    if (-not [string]::IsNullOrWhiteSpace($config.Config.Settings.LanguagePackSource) -and -not $useOffline) {
+        log "LanguagePackSource specified but not found ($LanguagePackSource); falling back to online install"
+    }
+
+    $canOnline = [bool](Get-Command Install-Language -ErrorAction SilentlyContinue)
+    if (-not $useOffline -and -not $canOnline) {
+        log "Install-Language cmdlet not available and no local source provided; skipping language pack install"
+    }
+    else {
+        $InstalledLanguages = @()
+        if (Get-Command Get-InstalledLanguage -ErrorAction SilentlyContinue) {
+            $InstalledLanguages = (Get-InstalledLanguage).LanguageId
+        }
+
         foreach ($Language in $LanguagePackInstall) {
             if ($InstalledLanguages -contains $Language) {
                 log "Language pack already installed: $Language"
                 continue
             }
-            log "Installing language pack: $Language"
-            try {
-                Install-Language -Language $Language -CopyToSettings -ErrorAction Stop | Out-Null
-                log " Language pack installed: $Language"
+
+            if ($useOffline) {
+                log "Installing language pack (offline) from local source: $Language"
+                Install-LanguageOffline -Language $Language -SourceFolder $LanguagePackSource | Out-Null
             }
-            catch {
-                log " Unable to install language pack ${Language}: $($_.Exception.Message)"
+            else {
+                log "Installing language pack (online): $Language"
+                try {
+                    Install-Language -Language $Language -CopyToSettings -ErrorAction Stop | Out-Null
+                    log " Language pack installed: $Language"
+                }
+                catch {
+                    log " Unable to install language pack ${Language}: $($_.Exception.Message)"
+                }
             }
         }
 
@@ -408,9 +439,6 @@ if ($config.Config.Flags.LanguagePacks -and $LanguagePackInstall.count -gt 0) {
                 log " Unable to set system UI language: $($_.Exception.Message)"
             }
         }
-    }
-    else {
-        log "Install-Language cmdlet not available on this OS; skipping language pack install"
     }
 }
 
