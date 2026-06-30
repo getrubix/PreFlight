@@ -376,6 +376,44 @@ if ($AddFeatures.count -gt 0) {
     }
 }
 
+# Install language packs (Language Experience Packs + associated features)
+$LanguagePackInstall = $config.Config.Settings.LanguagePackInstall
+if ($config.Config.Flags.LanguagePacks -and $LanguagePackInstall.count -gt 0) {
+    if (Get-Command Install-Language -ErrorAction SilentlyContinue) {
+        $InstalledLanguages = (Get-InstalledLanguage).LanguageId
+        foreach ($Language in $LanguagePackInstall) {
+            if ($InstalledLanguages -contains $Language) {
+                log "Language pack already installed: $Language"
+                continue
+            }
+            log "Installing language pack: $Language"
+            try {
+                Install-Language -Language $Language -CopyToSettings -ErrorAction Stop | Out-Null
+                log " Language pack installed: $Language"
+            }
+            catch {
+                log " Unable to install language pack ${Language}: $($_.Exception.Message)"
+            }
+        }
+
+        # Optionally set the system-preferred UI language (effective after restart)
+        $SetSystemLanguage = $config.Config.Settings.SetSystemLanguage
+        if (-not [string]::IsNullOrWhiteSpace($SetSystemLanguage)) {
+            log "Setting system UI language to: $SetSystemLanguage"
+            try {
+                Set-SystemPreferredUILanguage -Language $SetSystemLanguage
+                log " System UI language set to: $SetSystemLanguage (effective after restart)"
+            }
+            catch {
+                log " Unable to set system UI language: $($_.Exception.Message)"
+            }
+        }
+    }
+    else {
+        log "Install-Language cmdlet not available on this OS; skipping language pack install"
+    }
+}
+
 # ===========================================
 # PHASE 10: INSTALL WINGET APPS
 # ===========================================
