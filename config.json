@@ -60,7 +60,6 @@
 
       "AddFeatures": [
         "Microsoft.Windows.Sense.Client~~~~",
-        "WMIC"
       ],
 
       "LanguagePackInstall": [],
